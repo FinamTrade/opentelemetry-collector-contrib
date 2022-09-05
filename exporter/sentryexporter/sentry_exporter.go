@@ -145,24 +145,36 @@ func (s *SentryExporter) pushTraceData(_ context.Context, td ptrace.Traces) erro
 
 	transactions = append(transactions, exceptionEvents...)
 
-    for _, transaction := range transactions {
-        out:
-        for _, span := range transaction.Spans {
-            if user, foundUser := span.Tags["user.person_id"]; foundUser {
-                transaction.User = sentry.User{
-                    Email:     span.Tags["user.email"],
-                    ID:        user,
-                    IPAddress: span.Tags["user.ip"],
-                    Username:  span.Tags["user.login"],
-                }
-                break out
-            }
-        }
-    }
+	for _, transaction := range transactions {
+		if userInTransaction, foundInTransaction := generateUser(transaction.Tags); foundInTransaction {
+			transaction.User = userInTransaction
+		} else {
+		out:
+			for _, span := range transaction.Spans {
+				if userInSpan, foundInSpan := generateUser(span.Tags); foundInSpan {
+					transaction.User = userInSpan
+					break out
+				}
+			}
+		}
+	}
 
 	s.transport.SendEvents(transactions)
 
 	return nil
+}
+
+func generateUser(tags map[string]string) (sentryUser sentry.User, found bool) {
+	if user, foundUser := tags["user.person_id"]; foundUser {
+		sentryUser = sentry.User{
+			Email:     tags["user.email"],
+			ID:        user,
+			IPAddress: tags["user.ip"],
+			Username:  tags["user.login"],
+		}
+		found = true
+	}
+	return
 }
 
 // generateTransactions creates a set of Sentry transactions from a transaction map and orphan spans.
