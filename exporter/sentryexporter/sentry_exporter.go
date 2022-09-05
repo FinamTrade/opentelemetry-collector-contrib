@@ -145,6 +145,21 @@ func (s *SentryExporter) pushTraceData(_ context.Context, td ptrace.Traces) erro
 
 	transactions = append(transactions, exceptionEvents...)
 
+    for _, transaction := range transactions {
+        out:
+        for _, span := range transaction.Spans {
+            if user, foundUser := span.Tags["user.person_id"]; foundUser {
+                transaction.User = sentry.User{
+                    Email:     span.Tags["user.email"],
+                    ID:        user,
+                    IPAddress: span.Tags["user.ip"],
+                    Username:  span.Tags["user.login"],
+                }
+                break out
+            }
+        }
+    }
+
 	s.transport.SendEvents(transactions)
 
 	return nil
